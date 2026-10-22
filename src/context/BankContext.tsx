@@ -1,6 +1,7 @@
 // ============================================================
 // Bank provider — read-only question bank (fetch + cache)
-// Bank file: public/mock-data/courses/COS102.json
+// Bank files: public/mock-data/courses/<course>.json (registry
+// in lib/courses.ts). The active course comes from Settings.
 // Fetched at runtime (N4 portability) with last-good cache
 // fallback so a missing/corrupt bank never crashes (07-G).
 // ============================================================
@@ -9,8 +10,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import type { CourseBank, Question } from "@/lib/types";
 import { loadBankCache, saveBankCache } from "@/lib/storage";
-
-const BANK_URL = `${import.meta.env.BASE_URL}mock-data/courses/COS102.json`;
+import { resolveCourse } from "@/lib/courses";
+import { useSettings } from "@/context/SettingsContext";
 
 interface BankContextValue {
   questions: Question[];
@@ -44,6 +45,9 @@ function isValidBank(data: unknown): data is CourseBank {
 }
 
 export function BankProvider({ children }: { children: ReactNode }) {
+  const { settings } = useSettings();
+  const course = resolveCourse(settings.course);
+  const courseId = course.id;
   const [bank, setBank] = useState<CourseBank | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,29 +56,31 @@ export function BankProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const bankUrl = `${import.meta.env.BASE_URL}mock-data/courses/${course.file}`;
 
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(BANK_URL, { cache: "no-store" });
+        const res = await fetch(bankUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: unknown = await res.json();
-        if (!isValidBank(data)) throw new Error("Invalid bank format");
+        // A valid bank that actually belongs to the selected course
+        if (!isValidBank(data) || data.course !== courseId) throw new Error("Invalid bank format");
         if (cancelled) return;
         setBank(data);
         setFromCache(false);
-        saveBankCache(data); // remember last-good bank
+        saveBankCache(courseId, data); // remember last-good bank for this course
       } catch {
-        // Fall back to last-good cached bank (07-G)
-        const cached = loadBankCache();
-        if (!cancelled && isValidBank(cached)) {
+        // Fall back to last-good cached bank for this course (07-G)
+        const cached = loadBankCache(courseId);
+        if (!cancelled && isValidBank(cached) && cached.course === courseId) {
           setBank(cached);
           setFromCache(true);
           setError("Question bank file unavailable — showing your last saved copy.");
         } else if (!cancelled) {
           setBank(null);
-          setError("Could not load the question bank. Check that the bank file exists.");
+          setError(`Could not load the ${courseId} question bank. Check that the bank file exists.`);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -85,7 +91,7 @@ export function BankProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [courseId, course.file, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 

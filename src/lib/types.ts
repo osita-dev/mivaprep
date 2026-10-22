@@ -98,6 +98,7 @@ export type MasteryMap = Record<string, MasteryState>;
 /** User preferences — device-local */
 export interface Settings {
   userName: string;
+  course: string; // active course id (see lib/courses.ts registry)
   defaultTimerOn: boolean;
   defaultTimerMinutes: number;
   defaultCount: number;

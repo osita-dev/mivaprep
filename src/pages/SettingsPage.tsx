@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { CalendarClock, Eye, RotateCcw, Timer, User, Zap } from "lucide-react";
+import { BookOpen, CalendarClock, Eye, RotateCcw, Timer, User, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSettings } from "@/context/SettingsContext";
 import { useProgress } from "@/context/ProgressContext";
+import { COURSES } from "@/lib/courses";
+import { courseOfAttempt } from "@/lib/engines/statsEngine";
 
 const COUNT_OPTIONS = [10, 25, 50];
 const TIMER_OPTIONS = [15, 30, 45];
@@ -48,6 +50,7 @@ export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
   const { clearProgress, attempts } = useProgress();
   const [clearOpen, setClearOpen] = useState(false);
+  const courseAttemptCount = attempts.filter((a) => courseOfAttempt(a) === settings.course).length;
 
   return (
     <div className="space-y-5">
@@ -55,6 +58,28 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your preferences stay on this device.</p>
       </div>
+
+      <Section icon={<BookOpen className="h-4 w-4" />} title="Active Course">
+        <div className="flex flex-wrap gap-2">
+          {COURSES.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => updateSettings({ course: c.id })}
+              className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${
+                settings.course === c.id
+                  ? "border-primary bg-primary text-white"
+                  : "border-border"
+              }`}
+            >
+              {c.id}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Quizzes, practice and progress follow the selected course. Each course keeps its own
+          history on this device.
+        </p>
+      </Section>
 
       <Section icon={<User className="h-4 w-4" />} title="Profile">
         <div className="space-y-1.5">
@@ -151,8 +176,9 @@ export default function SettingsPage() {
           <RotateCcw className="h-4 w-4" /> Data
         </h2>
         <p className="mb-3 text-xs text-red-600/80">
-          {attempts.length} quiz attempts saved on this device. Clearing removes all attempt history and
-          mastery progress — the question bank is not affected.
+          {courseAttemptCount} quiz attempt{courseAttemptCount === 1 ? "" : "s"} saved for{" "}
+          {settings.course} on this device. Clearing removes all attempt history and mastery
+          progress — the question bank is not affected.
         </p>
         <Button
           variant="outline"

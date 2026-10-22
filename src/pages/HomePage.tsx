@@ -4,13 +4,14 @@
 // course card · quick links · Start CTA → StartQuizSheet (3)
 // ============================================================
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   BarChart3,
   CalendarClock,
-  ChevronRight,
+  Check,
+  ChevronDown,
   Flame,
   Layers,
   Play,
@@ -19,10 +20,24 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { COURSES } from "@/lib/courses";
 import { useBank } from "@/context/BankContext";
 import { useProgress } from "@/context/ProgressContext";
 import { useSettings } from "@/context/SettingsContext";
-import { computePerformance, courseMasteryPercent, daysUntil } from "@/lib/engines/statsEngine";
+import {
+  computePerformance,
+  courseMasteryPercent,
+  courseOfAttempt,
+  daysUntil,
+} from "@/lib/engines/statsEngine";
 import { getMissedQuestions } from "@/lib/engines/masteryEngine";
 import StartQuizSheet from "@/components/StartQuizSheet";
 import type { QuizConfig } from "@/lib/types";
@@ -38,10 +53,16 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { questions, bank, loading, error, reload } = useBank();
   const { attempts, mastery } = useProgress();
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const performance = computePerformance(attempts);
+  // Stats shown on Home belong to the active course only
+  const courseAttempts = useMemo(
+    () => attempts.filter((a) => courseOfAttempt(a) === bank?.course),
+    [attempts, bank?.course]
+  );
+
+  const performance = computePerformance(courseAttempts);
   const masteryPct = courseMasteryPercent(questions, mastery);
   const missed = getMissedQuestions(mastery, questions);
   const days = daysUntil(settings.examDate);
@@ -106,35 +127,62 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Course card */}
+      {/* Course card — tap to switch course */}
       <section>
         <h2 className="mb-3 text-base font-bold">Your Courses</h2>
-        <button
-          onClick={() => setSheetOpen(true)}
-          className="flex w-full items-center gap-3 rounded-3xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-            <Zap className="h-6 w-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">{bank?.title ?? "Introduction to Problem Solving"}</p>
-            <p className="text-xs text-muted-foreground">
-              {bank?.course ?? "COS102"} · {bank?.weeks.length ?? 0} weeks · {questions.length} questions
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  className="h-full rounded-full bg-primary"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${masteryPct}%` }}
-                  transition={{ duration: 0.6 }}
-                />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Switch course"
+              className="flex w-full items-center gap-3 rounded-3xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <Zap className="h-6 w-6" />
               </div>
-              <span className="text-xs font-semibold text-primary">{masteryPct}%</span>
-            </div>
-          </div>
-          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-        </button>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{bank?.title ?? "Introduction to Problem Solving"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {bank?.course ?? "COS102"} · {bank?.weeks.length ?? 0} weeks ·{" "}
+                  {questions.length} questions · Tap to switch
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <motion.div
+                      className="h-full rounded-full bg-primary"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${masteryPct}%` }}
+                      transition={{ duration: 0.6 }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-primary">{masteryPct}%</span>
+                </div>
+              </div>
+              <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuLabel>Switch course</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {COURSES.map((c) => (
+              <DropdownMenuItem
+                key={c.id}
+                onSelect={() => updateSettings({ course: c.id })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">
+                    {c.id}
+                    {settings.course === c.id ? " · active" : ""}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {bank?.course === c.id ? bank.title : c.title}
+                  </span>
+                </span>
+                {settings.course === c.id && <Check className="h-4 w-4 shrink-0 text-primary" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
 
       {/* Quick links */}

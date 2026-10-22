@@ -47,6 +47,13 @@ export function deriveBankStats(questions: Question[], mastery: MasteryMap): Ban
   };
 }
 
+/** The course an attempt belongs to (question ids are course-prefixed: COS102-W01-Q001) */
+export function courseOfAttempt(a: Attempt): string | null {
+  const first = a.questionIds[0];
+  if (!first) return null;
+  return first.split("-")[0] ?? null;
+}
+
 /** Home performance overview (screen 2): accuracy, quizzes taken, questions answered */
 export function computePerformance(attempts: Attempt[]): {
   accuracy: number;

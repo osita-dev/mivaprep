@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { Attempt, MasteryMap, Settings } from "./types";
+import { DEFAULT_COURSE_ID } from "./courses";
 
 const KEYS = {
   attempts: "mivav1.attempts",
@@ -40,25 +41,45 @@ export const loadMastery = (): MasteryMap => safeRead<MasteryMap>(KEYS.mastery, 
 export const saveMastery = (mastery: MasteryMap): void => safeWrite(KEYS.mastery, mastery);
 
 // ---- Settings ----
-export const defaultSettings = (): Settings => {
-  const exam = new Date();
-  exam.setDate(exam.getDate() + 12); // design placeholder: "12 days" countdown
-  return {
-    userName: "Student",
-    defaultTimerOn: true,
-    defaultTimerMinutes: 30,
-    defaultCount: 10,
-    examDate: exam.toISOString().slice(0, 10),
-    showSourceRefs: true,
-  };
-};
+/** The real MIVA exam date the user confirmed: 5 December 2026 */
+export const DEFAULT_EXAM_DATE = "2026-12-05";
+const EXAM_MIGRATION_KEY = "mivav1.examDateV2";
 
-export const loadSettings = (): Settings => ({
-  ...defaultSettings(),
-  ...safeRead<Partial<Settings>>(KEYS.settings, {}),
+export const defaultSettings = (): Settings => ({
+  userName: "Student",
+  course: DEFAULT_COURSE_ID,
+  defaultTimerOn: true,
+  defaultTimerMinutes: 30,
+  defaultCount: 10,
+  examDate: DEFAULT_EXAM_DATE,
+  showSourceRefs: true,
 });
+
+export const loadSettings = (): Settings => {
+  const merged = { ...defaultSettings(), ...safeRead<Partial<Settings>>(KEYS.settings, {}) };
+  // One-time migration: replace the old placeholder countdown (first run + 12
+  // days) with the real exam date. Runs once; later manual changes stick.
+  try {
+    if (!window.localStorage.getItem(EXAM_MIGRATION_KEY)) {
+      if (merged.examDate !== DEFAULT_EXAM_DATE) merged.examDate = DEFAULT_EXAM_DATE;
+      window.localStorage.setItem(EXAM_MIGRATION_KEY, "1");
+    }
+  } catch {
+    /* storage unavailable — the new default already applies */
+  }
+  return merged;
+};
 export const saveSettings = (settings: Settings): void => safeWrite(KEYS.settings, settings);
 
 // ---- Bank cache (last-good bank fallback, 07-G) ----
-export const loadBankCache = (): unknown => safeRead<unknown>(KEYS.bankCache, null);
-export const saveBankCache = (bank: unknown): void => safeWrite(KEYS.bankCache, bank);
+// Keyed per course so switching courses never resurfaces the wrong bank.
+// The legacy single-key cache only ever held the default course.
+const bankCacheKey = (course: string) => `${KEYS.bankCache}.${course}`;
+
+export const loadBankCache = (course: string): unknown =>
+  safeRead<unknown>(
+    bankCacheKey(course),
+    course === DEFAULT_COURSE_ID ? safeRead<unknown>(KEYS.bankCache, null) : null
+  );
+export const saveBankCache = (course: string, bank: unknown): void =>
+  safeWrite(bankCacheKey(course), bank);

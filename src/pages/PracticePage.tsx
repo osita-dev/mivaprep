@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBank } from "@/context/BankContext";
 import { useProgress } from "@/context/ProgressContext";
-import { computeImprovement, getWeakTopics } from "@/lib/engines/statsEngine";
+import { computeImprovement, courseOfAttempt, getWeakTopics } from "@/lib/engines/statsEngine";
 import StartQuizSheet from "@/components/StartQuizSheet";
 import EmptyState from "@/components/EmptyState";
 import type { QuizConfig } from "@/lib/types";
@@ -22,18 +22,24 @@ export default function PracticePage() {
   const { attempts } = useProgress();
   const [customOpen, setCustomOpen] = useState(false);
 
-  const weakTopics = useMemo(() => getWeakTopics(attempts, questions), [attempts, questions]);
+  // Weak areas and improvement history belong to the active course only
+  const courseAttempts = useMemo(
+    () => attempts.filter((a) => courseOfAttempt(a) === bank?.course),
+    [attempts, bank?.course]
+  );
+
+  const weakTopics = useMemo(() => getWeakTopics(courseAttempts, questions), [courseAttempts, questions]);
 
   const lastPractice = useMemo(() => {
-    const prior = attempts
+    const prior = courseAttempts
       .filter((a) => a.mode === "practice" || a.mode === "missed-retry")
       .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
     return prior[0] ?? null;
-  }, [attempts]);
+  }, [courseAttempts]);
 
   const improvement = useMemo(
-    () => (lastPractice ? computeImprovement(attempts, lastPractice) : null),
-    [attempts, lastPractice]
+    () => (lastPractice ? computeImprovement(courseAttempts, lastPractice) : null),
+    [courseAttempts, lastPractice]
   );
 
   const drillTopic = (topic: string) => {

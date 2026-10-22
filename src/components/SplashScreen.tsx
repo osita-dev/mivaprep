@@ -1,5 +1,5 @@
 // ============================================================
-// SplashScreen — design screen 1 (ExamPrep branding)
+// SplashScreen — design screen 1 (MivaPrep branding)
 // Shows once per browser session, auto-dismisses, tap to skip.
 // ============================================================
 
@@ -64,7 +64,7 @@ export default function SplashScreen() {
             transition={{ delay: 0.25 }}
             className="space-y-2"
           >
-            <h1 className="text-4xl font-bold tracking-tight">ExamPrep</h1>
+            <h1 className="text-4xl font-bold tracking-tight">MivaPrep</h1>
             <p className="text-base text-muted-foreground">Study Smarter. Score Higher.</p>
           </motion.div>
 
